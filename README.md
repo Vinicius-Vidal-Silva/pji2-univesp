@@ -22,13 +22,13 @@ O projeto foi estruturado para contemplar os requisitos de framework web, script
 * Adriano de Moraes Oliveira
 * Davi Rocha de Lima
 * Gustavo Santos Alves
-* Kelli dos Santos de Oliveira Costa[
-* Liliam da Silva Oliveira[c
-* Robert Alves Camargo[
+* Kelli dos Santos de Oliveira Costa
+* Liliam da Silva Oliveira
+* Robert Alves Camargo
 * Tabatha de Oliveira Ferreira
 * Vinicius Vidal Ramos da Silva
 
-**Orientadora do PI:** Ana Elisa Teixeira da Silva[
+**Orientadora do PI:** Ana Elisa Teixeira da Silva
 **Polos:** Mogi das Cruzes, São Bernardo do Campo, Diadema
 
 ## 🔗 Link do Repositório
