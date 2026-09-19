@@ -1,0 +1,26 @@
+# Ambientes virtuais Python
+venv/
+.env/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Credenciais e Variáveis de Ambiente (MUITO IMPORTANTE)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Outros arquivos temporários
+.DS_Store
+
+# Códigos de Teste Locais (Python)
+codigos/app_livro/python/teste_*.py
