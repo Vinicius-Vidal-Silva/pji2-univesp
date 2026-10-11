@@ -27,7 +27,6 @@ export default function App() {
       return;
     }
 
-    // 1. Pega a sessão inicial apenas quando a aplicação carrega
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setUser(session.user);
@@ -38,11 +37,9 @@ export default function App() {
       setIsInitializing(false);
     });
 
-    // 2. O Listener do Supabase deve ser registrado APENAS UMA VEZ
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null);
       
-      // Controla a navegação forçada apenas em eventos explícitos do Supabase
       if (event === 'SIGNED_IN') {
         setCurrentScreen('dashboard');
       } else if (event === 'SIGNED_OUT') {
@@ -51,9 +48,8 @@ export default function App() {
       }
     });
 
-    // Limpa o listener se o componente for desmontado
     return () => subscription.unsubscribe();
-  }, []); // <-- O segredo está aqui: o Array Vazio garante que esse loop não se repita
+  }, []);
 
   const handleLogout = async () => {
     if (supabase) await supabase.auth.signOut();
@@ -310,9 +306,6 @@ function ClariceChat({ isDarkMode, book }) {
   );
 }
 
-// -----------------------------------------------------------------------------
-// TELA: CONFIGURAÇÃO DE PERFIL PÓS-CADASTRO
-// -----------------------------------------------------------------------------
 function ProfileSetupModal({ user, onComplete }) {
   const [bio, setBio] = useState('');
   const [imageFile, setImageFile] = useState(null);
@@ -406,9 +399,6 @@ function ProfileSetupModal({ user, onComplete }) {
   );
 }
 
-// -----------------------------------------------------------------------------
-// TELA: WISHLIST / LISTA DE DESEJOS
-// -----------------------------------------------------------------------------
 function WishlistPage({ user }) {
   const [wishlist, setWishlist] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -538,10 +528,6 @@ function WishlistPage({ user }) {
     </div>
   );
 }
-
-// -----------------------------------------------------------------------------
-// DEMAIS COMPONENTES (Trocados/Dashboard/Auth/etc)
-// -----------------------------------------------------------------------------
 
 function TradesCenterPage({ user }) {
   const [activeTab, setActiveTab] = useState('pendentes');
