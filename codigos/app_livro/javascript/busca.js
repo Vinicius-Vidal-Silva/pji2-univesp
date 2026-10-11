@@ -57,5 +57,4 @@ async function buscarLivroPorISBN(isbn) {
   }
 }
 
-// Chamada de teste direta no final do arquivo
 buscarLivroPorISBN('9788547000249').then(dados => console.log(dados));

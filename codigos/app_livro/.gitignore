@@ -23,4 +23,4 @@ __pycache__/
 .DS_Store
 
 # Códigos de Teste Locais (Python)
-codigos/app_livro/python/teste_*.py
+python/teste_*.py

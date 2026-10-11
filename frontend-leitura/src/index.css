@@ -1,0 +1,80 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+.dark .bg-white,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-gray-200,
+.dark .bg-gray-300,
+.dark .bg-slate-900,
+.dark .bg-slate-800 {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.3);
+}
+
+.dark .bg-white {
+  background-color: rgb(15 23 42) !important;
+}
+
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-slate-900 {
+  background-color: rgb(15 23 42) !important;
+}
+
+.dark .bg-gray-200 {
+  background-color: rgb(30 41 59) !important;
+}
+
+.dark .bg-gray-300 {
+  background-color: rgb(51 65 85) !important;
+}
+
+.dark .bg-gray-800 {
+  background-color: rgb(2 6 23) !important;
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: rgb(226 232 240) !important;
+}
+
+.dark .text-gray-400 {
+  color: rgb(148 163 184) !important;
+}
+
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .border-slate-700 {
+  border-color: rgb(51 65 85) !important;
+}
+
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.4) !important;
+}
+
+.dark .rounded-lg,
+.dark .rounded-xl,
+.dark .rounded-md,
+.dark .rounded-full {
+  border-color: rgb(51 65 85);
+}
