@@ -57,4 +57,4 @@ async function buscarLivroPorISBN(isbn) {
   }
 }
 
-buscarLivroPorISBN('9788547000249').then(dados => console.log(dados));
+buscarLivroPorISBN('9788535933925').then(dados => console.log(dados));

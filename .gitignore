@@ -1,9 +1,15 @@
 # Local environment and credentials
 .env
 .env.*
+.git-credentials
 !.env.example
 !.env.*.example
 .envrc
+*.secret
+*.secrets
+*.token
+*.credentials
+*.credential
 *.local
 .npmrc
 !.npmrc.example
@@ -11,6 +17,20 @@
 .pypirc
 secrets/
 credentials.*
+
+# Additional private material and infrastructure exports
+*.cer
+*.crt
+*.csr
+*.der
+*.p8
+*.asc
+*.gpg
+*.age
+*.tfvars
+*.tfvars.json
+*.dump
+*.backup
 *credentials.*
 *credential.*
 *service-account*.json

@@ -1,13 +1,31 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { isIsbn13, normalizeIsbn, searchGoogleBooks } from './googleBooks.js';
+
+const AdminDashboard = lazy(() => import('./AdminDashboard.jsx'));
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const PROFILE_AVATAR_BUCKET = 'fotos-perfil';
+
+function getProfileAvatarPath(publicUrl) {
+  if (!publicUrl) return null;
+
+  try {
+    const marker = `/storage/v1/object/public/${PROFILE_AVATAR_BUCKET}/`;
+    const pathname = new URL(publicUrl).pathname;
+    const markerIndex = pathname.indexOf(marker);
+    return markerIndex < 0 ? null : decodeURIComponent(pathname.slice(markerIndex + marker.length));
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('landing');
   const [user, setUser] = useState(null);
+  const isAdmin = user?.app_metadata?.role === 'admin';
   const [isInitializing, setIsInitializing] = useState(true);
   const [selectedBookForDetails, setSelectedBookForDetails] = useState(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
@@ -67,28 +85,38 @@ export default function App() {
   return (
     <div className={isDarkMode ? 'dark' : ''}>
       <div className={`min-h-screen ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-gray-900'} flex flex-col font-sans`}>
-        <header className={`${isDarkMode ? 'bg-slate-900 border-b border-slate-700' : 'bg-white shadow-sm border-b border-gray-200'} py-4 px-6 md:px-12 flex justify-between items-center z-10 relative`}>
+        <header className={`${isDarkMode ? 'bg-slate-900 border-b border-slate-700' : 'bg-white shadow-sm border-b border-gray-200'} py-3 px-4 sm:py-4 sm:px-6 md:px-12 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center z-10 relative`}>
           <div className="flex items-center gap-2">
             <span role="img" aria-label="Logo Livro Aberto" className="text-2xl">📖</span>
-            <h1 className={`text-xl font-bold hidden sm:block ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>TrocaLivros</h1>
+            <h1 className={`text-xl font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>TrocaLivros</h1>
           </div>
 
-          <nav aria-label="Navegação Principal">
-            <ul className="flex items-center gap-2 md:gap-4">
+          <nav className="w-full sm:w-auto" aria-label="Navegação Principal">
+            <ul className="flex flex-wrap items-center justify-center sm:justify-end gap-1 sm:gap-2 md:gap-4">
               {user && (
                 <>
                   <li>
                     <button 
                       onClick={() => { setCurrentScreen('dashboard'); setSelectedBookForDetails(null); }} 
-                      className={`px-3 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'dashboard' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
+                      className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'dashboard' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
                       Vitrine
                     </button>
                   </li>
+                  {isAdmin && (
+                    <li>
+                      <button
+                        onClick={() => { setCurrentScreen('admin_dashboard'); setSelectedBookForDetails(null); }}
+                        className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'admin_dashboard' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
+                      >
+                        Dashboard
+                      </button>
+                    </li>
+                  )}
                   <li>
                     <button 
                       onClick={() => { setCurrentScreen('inventory'); setSelectedBookForDetails(null); }}
-                      className={`px-3 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'inventory' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
+                      className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'inventory' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
                       Meu Inventário
                     </button>
@@ -96,7 +124,7 @@ export default function App() {
                   <li>
                     <button 
                       onClick={() => { setCurrentScreen('wishlist'); setSelectedBookForDetails(null); }}
-                      className={`px-3 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'wishlist' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
+                      className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'wishlist' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
                       Wishlist
                     </button>
@@ -104,9 +132,17 @@ export default function App() {
                   <li>
                     <button 
                       onClick={() => { setCurrentScreen('trades'); setSelectedBookForDetails(null); }}
-                      className={`px-3 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'trades' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
+                      className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'trades' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
                       Minhas Trocas
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => { setCurrentScreen('profile'); setSelectedBookForDetails(null); }}
+                      className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'profile' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
+                    >
+                      Meu Perfil
                     </button>
                   </li>
                 </>
@@ -114,7 +150,7 @@ export default function App() {
               
               {!user && (
                 <li>
-                  <button onClick={() => setCurrentScreen('landing')} className={`px-3 py-2 text-sm rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-700'}`}>
+                  <button onClick={() => setCurrentScreen('landing')} className={`px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-700'}`}>
                     Início
                   </button>
                 </li>
@@ -124,7 +160,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsDarkMode((prev) => !prev)}
-                  className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700' : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700' : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   aria-label={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
                 >
                   {isDarkMode ? '☀️ Claro' : '🌙 Escuro'}
@@ -133,11 +169,11 @@ export default function App() {
               
               <li>
                 {user ? (
-                  <button onClick={handleLogout} className="px-4 py-2 ml-2 border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-md transition-all">
+                  <button onClick={handleLogout} className="px-3 sm:px-4 py-2 border border-red-200 text-xs sm:text-sm font-semibold text-red-600 hover:bg-red-50 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-md transition-all">
                     Sair
                   </button>
                 ) : (
-                  <button onClick={() => setCurrentScreen('auth')} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm">
+                  <button onClick={() => setCurrentScreen('auth')} className="px-3 sm:px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm">
                     Entrar / Cadastrar
                   </button>
                 )}
@@ -146,7 +182,7 @@ export default function App() {
           </nav>
         </header>
 
-        <main className={`flex-grow flex flex-col items-center p-4 md:p-8 ${isDarkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
+        <main className={`flex-grow flex flex-col items-center p-3 sm:p-4 md:p-8 ${isDarkMode ? 'bg-slate-950' : 'bg-gray-50'}`}>
           <div className="w-full max-w-6xl">
           {currentScreen === 'landing' && !user && <LandingPage onNavigate={setCurrentScreen} />}
           {currentScreen === 'auth' && !user && (
@@ -160,9 +196,20 @@ export default function App() {
           )}
 
           {currentScreen === 'dashboard' && user && <DashboardPage user={user} onBookSelect={navigateToBookDetails} />}
+          {currentScreen === 'admin_dashboard' && user && isAdmin && (
+            <Suspense fallback={<p className="py-12 text-center text-slate-500" role="status">Carregando dashboard...</p>}>
+              <AdminDashboard supabase={supabase} />
+            </Suspense>
+          )}
           {currentScreen === 'inventory' && user && <InventoryPage user={user} />}
           {currentScreen === 'wishlist' && user && <WishlistPage user={user} />}
           {currentScreen === 'trades' && user && <TradesCenterPage user={user} />}
+          {currentScreen === 'profile' && user && (
+            <ProfileSettingsPage
+              user={user}
+              onAccountDeleted={() => { setUser(null); setCurrentScreen('landing'); }}
+            />
+          )}
           {currentScreen === 'book_details' && user && selectedBookForDetails && (
              <BookDetailsPage 
                user={user} 
@@ -181,7 +228,7 @@ export default function App() {
       )}
       
       <footer className="bg-gray-800 text-gray-300 py-6 mt-auto">
-        <div className="max-w-6xl mx-auto px-6 md:px-12 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-12 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
           <div className="text-sm">
             &copy; {new Date().getFullYear()} TrocaLivros. Todos os direitos reservados.
           </div>
@@ -256,7 +303,7 @@ function ClariceChat({ isDarkMode, book }) {
     : 'bg-white border-gray-200 text-gray-900';
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
+    <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 flex flex-col items-end gap-3">
       {isOpen && (
         <section className={`flex h-[min(32rem,calc(100dvh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border shadow-2xl ${panelColors}`} aria-label="Chat com Clarice">
           <header className={`flex items-center justify-between border-b px-4 py-3 ${isDarkMode ? 'border-slate-700 bg-slate-800' : 'border-gray-200 bg-gray-50'}`}>
@@ -311,26 +358,32 @@ function ProfileSetupModal({ user, onComplete }) {
   const [imageFile, setImageFile] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setImageFile(file);
       setPreviewImage(URL.createObjectURL(file));
+      setErrorMessage('');
     }
   };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     setIsSaving(true);
+    setErrorMessage('');
     try {
       let avatarUrl = null;
       if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
+        const fileExt = imageFile.name.split('.').pop() || imageFile.type.split('/').pop() || 'jpg';
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
         const filePath = `${user.id}/${fileName}`;
         
-        const { error: uploadError } = await supabase.storage.from('fotos-perfil').upload(filePath, imageFile);
+        const { error: uploadError } = await supabase.storage.from('fotos-perfil').upload(filePath, imageFile, {
+          contentType: imageFile.type,
+          upsert: false,
+        });
         if (uploadError) throw uploadError;
         
         const { data: publicUrlData } = supabase.storage.from('fotos-perfil').getPublicUrl(filePath);
@@ -346,8 +399,7 @@ function ProfileSetupModal({ user, onComplete }) {
       onComplete();
     } catch (err) {
       console.error("Erro ao salvar perfil:", err);
-      alert("Houve um erro ao salvar seu perfil. Você pode tentar novamente mais tarde.");
-      onComplete();
+      setErrorMessage(`Não foi possível salvar o perfil: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -355,9 +407,10 @@ function ProfileSetupModal({ user, onComplete }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center p-4 z-50 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-8">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:p-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Complete seu Perfil</h2>
         <p className="text-gray-600 text-sm mb-6">Ajude a comunidade a te conhecer melhor antes de realizar trocas.</p>
+        {errorMessage && <p className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{errorMessage}</p>}
         
         <form onSubmit={handleSaveProfile} className="space-y-5">
           <div className="flex flex-col items-center gap-4">
@@ -385,7 +438,7 @@ function ProfileSetupModal({ user, onComplete }) {
             />
           </div>
 
-          <div className="pt-4 flex gap-3">
+          <div className="pt-4 flex flex-col-reverse sm:flex-row gap-3">
             <button type="button" onClick={onComplete} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-md hover:bg-gray-200">
               Pular
             </button>
@@ -396,6 +449,228 @@ function ProfileSetupModal({ user, onComplete }) {
         </form>
       </div>
     </div>
+  );
+}
+
+function ProfileSettingsPage({ user, onAccountDeleted }) {
+  const [bio, setBio] = useState('');
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadProfile() {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('bio, foto_perfil_url')
+        .eq('id', user.id)
+        .single();
+
+      if (!isCurrent) return;
+      if (error) {
+        setFeedback({ type: 'error', message: `Não foi possível carregar seu perfil: ${error.message}` });
+      } else {
+        setBio(data.bio || '');
+        setPhotoUrl(data.foto_perfil_url);
+        setPreviewUrl(data.foto_perfil_url);
+      }
+      setIsLoading(false);
+    }
+
+    loadProfile();
+    return () => { isCurrent = false; };
+  }, [user.id]);
+
+  useEffect(() => () => {
+    if (previewUrl?.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+      setFeedback({ type: 'error', message: 'Escolha uma imagem de até 5 MB.' });
+      event.target.value = '';
+      return;
+    }
+
+    setImageFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setRemovePhoto(false);
+    setFeedback(null);
+  };
+
+  const handleSaveProfile = async (event) => {
+    event.preventDefault();
+    setIsSavingProfile(true);
+    setFeedback(null);
+
+    let uploadedPath = null;
+    let nextPhotoUrl = photoUrl;
+    const previousPath = getProfileAvatarPath(photoUrl);
+
+    try {
+      if (imageFile) {
+        const fileExtension = imageFile.name.split('.').pop() || imageFile.type.split('/').pop() || 'jpg';
+        const uniqueFileName = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.${fileExtension}`;
+        uploadedPath = `${user.id}/${uniqueFileName}`;
+        const { error: uploadError } = await supabase.storage
+          .from(PROFILE_AVATAR_BUCKET)
+          .upload(uploadedPath, imageFile, { contentType: imageFile.type, upsert: false });
+        if (uploadError) throw uploadError;
+        nextPhotoUrl = supabase.storage.from(PROFILE_AVATAR_BUCKET).getPublicUrl(uploadedPath).data.publicUrl;
+      } else if (removePhoto) {
+        nextPhotoUrl = null;
+      }
+
+      const { error } = await supabase.from('usuarios').update({
+        bio: bio.trim() || null,
+        foto_perfil_url: nextPhotoUrl,
+      }).eq('id', user.id);
+      if (error) throw error;
+
+      setPhotoUrl(nextPhotoUrl);
+      setPreviewUrl(nextPhotoUrl);
+      setImageFile(null);
+      setRemovePhoto(false);
+
+      if (previousPath && previousPath !== uploadedPath && (imageFile || removePhoto)) {
+        const { error: removeError } = await supabase.storage.from(PROFILE_AVATAR_BUCKET).remove([previousPath]);
+        if (removeError) {
+          setFeedback({ type: 'error', message: `Perfil atualizado, mas não foi possível apagar a foto anterior: ${removeError.message}` });
+          return;
+        }
+      }
+
+      setFeedback({ type: 'success', message: 'Perfil atualizado.' });
+    } catch (error) {
+      if (uploadedPath) await supabase.storage.from(PROFILE_AVATAR_BUCKET).remove([uploadedPath]);
+      setFeedback({ type: 'error', message: `Não foi possível atualizar o perfil: ${error.message}` });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (event) => {
+    event.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setFeedback({ type: 'error', message: 'As senhas não coincidem.' });
+      return;
+    }
+
+    setIsSavingPassword(true);
+    setFeedback(null);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setIsSavingPassword(false);
+    if (error) {
+      setFeedback({ type: 'error', message: `Não foi possível alterar a senha: ${error.message}` });
+      return;
+    }
+
+    setNewPassword('');
+    setConfirmPassword('');
+    setFeedback({ type: 'success', message: 'Senha alterada.' });
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm('Excluir sua conta permanentemente? Seus dados e livros associados serão removidos. Essa ação não pode ser desfeita.');
+    if (!confirmed) return;
+
+    setIsDeletingAccount(true);
+    setFeedback(null);
+    const { data, error } = await supabase.functions.invoke('delete-account');
+    if (error) {
+      setIsDeletingAccount(false);
+      setFeedback({ type: 'error', message: `Não foi possível excluir a conta: ${error.message}` });
+      return;
+    }
+
+    if (data?.storageCleanupWarning) {
+      window.alert('Sua conta foi excluída, mas alguns arquivos não puderam ser removidos do armazenamento.');
+    }
+    await supabase.auth.signOut({ scope: 'local' });
+    onAccountDeleted();
+  };
+
+  if (isLoading) return <p className="py-12 text-center text-gray-600" role="status">Carregando perfil...</p>;
+
+  return (
+    <section className="w-full max-w-3xl space-y-8" aria-labelledby="profile-heading">
+      <header className="border-b border-gray-200 pb-5 dark:border-slate-700">
+        <h2 id="profile-heading" className="text-3xl font-bold text-gray-900 dark:text-slate-100">Meu Perfil</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-slate-300">{user.email}</p>
+      </header>
+
+      {feedback && (
+        <p className={`rounded-md border p-3 text-sm ${feedback.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-800'}`} role={feedback.type === 'error' ? 'alert' : 'status'}>
+          {feedback.message}
+        </p>
+      )}
+
+      <form onSubmit={handleSaveProfile} className="space-y-5">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-gray-100 dark:border-slate-600 dark:bg-slate-800">
+            {previewUrl && !removePhoto ? <img src={previewUrl} alt="Foto atual do perfil" className="h-full w-full object-cover" /> : <span className="text-3xl" aria-hidden="true">👤</span>}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800">
+              Alterar foto
+              <input type="file" accept="image/*" onChange={handleImageChange} className="sr-only" />
+            </label>
+            {(photoUrl || imageFile) && !removePhoto && (
+              <button type="button" onClick={() => { setImageFile(null); setPreviewUrl(null); setRemovePhoto(true); }} className="px-2 py-2 text-sm font-medium text-red-700 hover:underline dark:text-red-300">
+                Remover foto
+              </button>
+            )}
+            <span className="w-full text-xs text-gray-500 dark:text-slate-400">Imagem até 5 MB</span>
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="profile-bio" className="mb-1 block text-sm font-semibold text-gray-800 dark:text-slate-200">Biografia</label>
+          <textarea id="profile-bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={500} rows={4} placeholder="Conte um pouco sobre você e suas leituras." className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+        </div>
+
+        <button type="submit" disabled={isSavingProfile} className="rounded-md bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">
+          {isSavingProfile ? 'Salvando...' : 'Salvar perfil'}
+        </button>
+      </form>
+
+      <form onSubmit={handleChangePassword} className="space-y-4 border-t border-gray-200 pt-6 dark:border-slate-700">
+        <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">Alterar senha</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="new-password" className="mb-1 block text-sm font-semibold text-gray-800 dark:text-slate-200">Nova senha</label>
+            <input id="new-password" type="password" autoComplete="new-password" minLength={6} required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+          </div>
+          <div>
+            <label htmlFor="confirm-new-password" className="mb-1 block text-sm font-semibold text-gray-800 dark:text-slate-200">Confirmar nova senha</label>
+            <input id="confirm-new-password" type="password" autoComplete="new-password" minLength={6} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+          </div>
+        </div>
+        <button type="submit" disabled={isSavingPassword} className="rounded-md border border-gray-300 px-4 py-2 font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800">
+          {isSavingPassword ? 'Alterando...' : 'Alterar senha'}
+        </button>
+      </form>
+
+      <div className="border-t border-red-200 pt-6 dark:border-red-900">
+        <h3 className="text-xl font-bold text-red-700 dark:text-red-300">Excluir conta</h3>
+        <p className="mt-1 mb-4 text-sm text-gray-600 dark:text-slate-300">A exclusão remove seu perfil e os dados associados e não pode ser desfeita.</p>
+        <button type="button" onClick={handleDeleteAccount} disabled={isDeletingAccount} className="rounded-md border border-red-300 px-4 py-2 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40">
+          {isDeletingAccount ? 'Excluindo conta...' : 'Excluir minha conta'}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -477,11 +752,11 @@ function WishlistPage({ user }) {
       )}
 
       <div className="flex flex-col mb-8 border-b pb-6">
-        <h2 className="text-3xl font-bold text-gray-900">Minha Wishlist</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Minha Wishlist</h2>
         <p className="text-gray-600 mt-1">Cadastre os livros que você procura. Avisaremos caso alguém adicione um exemplar correspondente à plataforma.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-8">
         <div className="md:col-span-1 bg-white p-6 rounded-lg border border-gray-200 shadow-sm self-start">
           <h3 className="font-bold text-lg mb-4">Adicionar Desejo</h3>
           <form onSubmit={handleAddWish} className="space-y-4">
@@ -599,14 +874,14 @@ function TradesCenterPage({ user }) {
 
     return (
       <div key={prop.id} className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm mb-4">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
           <span className="text-sm font-semibold text-gray-500">ID: {prop.id.substring(0, 8)}...</span>
           <span className={`text-xs font-bold px-3 py-1 rounded-full ${prop.status_proposta === 'Pendente' ? 'bg-yellow-100 text-yellow-800' : prop.status_proposta === 'Aceita' ? 'bg-blue-100 text-blue-800' : prop.status_proposta === 'Concluída' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
             {prop.status_proposta}
           </span>
         </div>
         
-        <div className="flex items-center justify-between gap-4 bg-gray-50 p-4 rounded-md">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 bg-gray-50 p-3 sm:p-4 rounded-md">
           <div className="flex-1 text-center">
             <p className="text-xs text-gray-500 mb-2">{isReceiver ? 'Seu Livro (Desejado)' : 'Livro Solicitado'}</p>
             <div className="h-24 w-16 mx-auto bg-gray-200 rounded overflow-hidden mb-2">
@@ -615,7 +890,7 @@ function TradesCenterPage({ user }) {
             <p className="text-sm font-bold text-gray-800 truncate">{prop.livro_desejado?.titulo}</p>
           </div>
           
-          <div className="text-2xl text-gray-400">⇆</div>
+          <div className="text-2xl text-gray-400 rotate-90 sm:rotate-0" aria-hidden="true">⇆</div>
 
           <div className="flex-1 text-center">
             <p className="text-xs text-gray-500 mb-2">{isReceiver ? 'Livro Oferecido a você' : 'Seu Livro Oferecido'}</p>
@@ -627,14 +902,14 @@ function TradesCenterPage({ user }) {
         </div>
 
         {prop.status_proposta === 'Pendente' && isReceiver && (
-          <div className="mt-4 flex gap-3">
+          <div className="mt-4 flex flex-col sm:flex-row gap-3">
             <button onClick={() => handleUpdateStatus(prop.id, 'Recusada')} className="flex-1 px-4 py-2 bg-red-50 text-red-600 font-semibold rounded hover:bg-red-100 transition-colors">Recusar</button>
             <button onClick={() => handleUpdateStatus(prop.id, 'Aceita', prop.livro_desejado.id, livroOfertadoData?.id)} className="flex-1 px-4 py-2 bg-green-600 text-white font-semibold rounded hover:bg-green-700 transition-colors">Aceitar Proposta</button>
           </div>
         )}
 
         {prop.status_proposta === 'Aceita' && (
-          <div className="mt-4 flex gap-3">
+          <div className="mt-4 flex flex-col sm:flex-row gap-3">
             <button onClick={() => setActiveChat({ ...prop, livro_ofertado: livroOfertadoData })} className="flex-1 px-4 py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 transition-colors">Abrir Chat Logístico</button>
           </div>
         )}
@@ -659,10 +934,10 @@ function TradesCenterPage({ user }) {
             <p className="text-gray-600 mt-1">Gerencie suas propostas e combine entregas.</p>
           </div>
 
-          <div className="flex border-b border-gray-200 mb-6">
-            <button onClick={() => setActiveTab('pendentes')} className={`pb-3 px-4 font-medium text-sm transition-colors ${activeTab === 'pendentes' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Pendentes</button>
-            <button onClick={() => setActiveTab('aceitas')} className={`pb-3 px-4 font-medium text-sm transition-colors ${activeTab === 'aceitas' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Em Andamento (Chat)</button>
-            <button onClick={() => setActiveTab('concluidas')} className={`pb-3 px-4 font-medium text-sm transition-colors ${activeTab === 'concluidas' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Histórico</button>
+          <div className="flex overflow-x-auto border-b border-gray-200 mb-6">
+            <button onClick={() => setActiveTab('pendentes')} className={`shrink-0 pb-3 px-3 sm:px-4 font-medium text-sm transition-colors ${activeTab === 'pendentes' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Pendentes</button>
+            <button onClick={() => setActiveTab('aceitas')} className={`shrink-0 pb-3 px-3 sm:px-4 font-medium text-sm transition-colors ${activeTab === 'aceitas' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Em Andamento (Chat)</button>
+            <button onClick={() => setActiveTab('concluidas')} className={`shrink-0 pb-3 px-3 sm:px-4 font-medium text-sm transition-colors ${activeTab === 'concluidas' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Histórico</button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -728,15 +1003,15 @@ function ChatInterface({ user, proposal, onClose, onComplete }) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[600px]">
-      <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-xl">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[min(600px,calc(100dvh-9rem))] min-h-80">
+      <div className="p-3 sm:p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center bg-gray-50 rounded-t-xl">
         <div>
           <h3 className="font-bold text-gray-900">Chat Logístico</h3>
           <p className="text-xs text-gray-500">Proposta #{proposal.id.substring(0,8)}</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={onComplete} className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700">Confirmar Troca Concluída</button>
-          <button onClick={onClose} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded hover:bg-gray-100">Voltar</button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button onClick={onComplete} className="px-3 sm:px-4 py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700">Confirmar Troca Concluída</button>
+          <button onClick={onClose} className="px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded hover:bg-gray-100">Voltar</button>
         </div>
       </div>
       
@@ -745,16 +1020,16 @@ function ChatInterface({ user, proposal, onClose, onComplete }) {
           <p className="text-center text-gray-400 mt-10 text-sm">Nenhuma mensagem ainda. Combine o local de entrega!</p>
         ) : (
           messages.map(msg => (
-            <div key={msg.id} className={`max-w-[70%] p-3 rounded-lg text-sm ${msg.remetente_id === user.id ? 'bg-blue-600 text-white self-end rounded-br-none' : 'bg-gray-200 text-gray-800 self-start rounded-bl-none'}`}>
+            <div key={msg.id} className={`max-w-[90%] sm:max-w-[70%] break-words p-3 rounded-lg text-sm ${msg.remetente_id === user.id ? 'bg-blue-600 text-white self-end rounded-br-none' : 'bg-gray-200 text-gray-800 self-start rounded-bl-none'}`}>
               {msg.conteudo}
             </div>
           ))
         )}
       </div>
       
-      <form onSubmit={sendMessage} className="p-4 border-t border-gray-200 bg-white rounded-b-xl flex gap-2">
-        <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Digite sua mensagem..." className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <button type="submit" className="px-6 py-2 bg-blue-600 text-white font-bold rounded-full hover:bg-blue-700">Enviar</button>
+      <form onSubmit={sendMessage} className="p-3 sm:p-4 border-t border-gray-200 bg-white rounded-b-xl flex gap-2">
+        <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Digite sua mensagem..." className="min-w-0 flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button type="submit" className="shrink-0 px-4 sm:px-6 py-2 bg-blue-600 text-white font-bold rounded-full hover:bg-blue-700">Enviar</button>
       </form>
     </div>
   );
@@ -866,7 +1141,7 @@ function BookDetailsPage({ user, book, onBack }) {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex flex-col md:flex-row">
           
-          <div className="md:w-1/3 bg-gray-50 flex items-center justify-center p-8 border-r border-gray-100">
+          <div className="md:w-1/3 bg-gray-50 flex items-center justify-center p-5 sm:p-8 border-b md:border-b-0 md:border-r border-gray-100">
              {book.foto_capa_url ? (
                 <img src={book.foto_capa_url} alt={`Capa de ${book.titulo}`} className="w-full max-w-xs h-auto object-cover shadow-md rounded" />
               ) : (
@@ -877,18 +1152,18 @@ function BookDetailsPage({ user, book, onBack }) {
               )}
           </div>
 
-          <div className="md:w-2/3 p-6 md:p-10 flex flex-col">
-            <div className="flex justify-between items-start">
+          <div className="md:w-2/3 p-4 sm:p-6 md:p-10 flex flex-col">
+            <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-3">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">{book.titulo}</h2>
-                <p className="text-xl text-gray-600 mb-6">por {book.autor}</p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{book.titulo}</h2>
+                <p className="text-lg sm:text-xl text-gray-600 mb-6">por {book.autor}</p>
               </div>
               <span className="bg-green-100 text-green-800 text-sm font-bold px-3 py-1 rounded-full whitespace-nowrap">
                 {book.status}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-6">
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-y-4 gap-x-4 sm:gap-x-8 mb-6">
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Idioma</h3>
                 <p className="text-gray-900 font-medium">{book.idioma || 'N/A'}</p>
@@ -907,7 +1182,7 @@ function BookDetailsPage({ user, book, onBack }) {
               </div>
             </div>
 
-            <div className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-4">
+            <div className="mb-8 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3 sm:gap-4">
                <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center">
                  {ownerProfile?.foto_perfil_url ? (
                     <img src={ownerProfile.foto_perfil_url} alt="Dono" className="w-full h-full object-cover" />
@@ -960,7 +1235,7 @@ function BookDetailsPage({ user, book, onBack }) {
                         ))}
                       </div>
                       
-                      <div className="flex gap-3">
+                      <div className="flex flex-col sm:flex-row gap-3">
                          <button onClick={() => setIsProposing(false)} className="flex-1 px-4 py-2 bg-white text-gray-700 border border-gray-300 font-medium rounded hover:bg-gray-50">Cancelar</button>
                          <button onClick={handleSendProposal} disabled={isSendingProposal || !selectedBookToOffer} className="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center">
                            {isSendingProposal ? 'Enviando...' : 'Confirmar Oferta'}
@@ -984,7 +1259,12 @@ function InventoryPage({ user }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
 
-  const [isSearchingISBN, setIsSearchingISBN] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchAuthor, setSearchAuthor] = useState('');
+  const [googleBooksResults, setGoogleBooksResults] = useState([]);
+  const [selectedGoogleBook, setSelectedGoogleBook] = useState(null);
+  const [hasSearchedGoogleBooks, setHasSearchedGoogleBooks] = useState(false);
+  const [isSearchingBooks, setIsSearchingBooks] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
@@ -1027,51 +1307,49 @@ function InventoryPage({ user }) {
     }
   };
 
-  const handleSearchISBN = async () => {
-    if (!formData.isbn) {
-      showFeedback("Digite um ISBN.", "error");
+  const handleSearchBooks = async () => {
+    if (!searchTerm.trim() && !searchAuthor.trim()) {
+      showFeedback("Informe um ISBN, título ou autor para buscar.", "error");
       return;
     }
-    
-    setIsSearchingISBN(true);
+
+    setIsSearchingBooks(true);
+    setHasSearchedGoogleBooks(true);
+    setGoogleBooksResults([]);
+    setSelectedGoogleBook(null);
     try {
-      const cleanIsbn = formData.isbn.replace(/[- ]/g, '').trim();
       const apiKey = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY;
-      const authQuery = apiKey ? `&key=${apiKey}` : ''; 
-      
-      let res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}${authQuery}`);
-      let data = await res.json();
-
-      if (!data.items || data.items.length === 0) {
-        res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${cleanIsbn}${authQuery}`);
-        data = await res.json();
-      }
-
-      if (data.items && data.items.length > 0) {
-        const info = data.items[0].volumeInfo;
-        let capaUrl = info.imageLinks?.smallThumbnail || info.imageLinks?.thumbnail || '';
-        if (capaUrl.startsWith('http:')) capaUrl = capaUrl.replace('http:', 'https:');
-
-        setFormData(prev => ({
-          ...prev,
-          titulo: info.title || prev.titulo,
-          autor: info.authors ? info.authors.join(', ') : prev.autor,
-          idioma: info.language === 'pt' ? 'Português' : info.language || 'Português',
-          foto_capa_url: capaUrl || prev.foto_capa_url
-        }));
-        showFeedback("Encontrado!", "success");
-      } else {
-        showFeedback("Não encontrado no Google.", "error");
-      }
+      const results = await searchGoogleBooks(
+        { searchTerm, author: searchAuthor },
+        apiKey,
+      );
+      setGoogleBooksResults(results);
     } catch (err) {
-      showFeedback("Erro de conexão. Preencha manualmente.", "error");
+      showFeedback(err.message || "Erro ao consultar o Google Books.", "error");
     } finally {
-      setIsSearchingISBN(false);
+      setIsSearchingBooks(false);
     }
+  };
+
+  const handleSelectGoogleBook = (book) => {
+    setSelectedGoogleBook(book);
+    setFormData((prev) => ({
+      ...prev,
+      isbn: book.isbn,
+      titulo: book.titulo || prev.titulo,
+      autor: book.autor || prev.autor,
+      idioma: book.idioma,
+      foto_capa_url: book.foto_capa_url || prev.foto_capa_url,
+    }));
   };
 
   const handleSaveBook = async (e) => {
     e.preventDefault();
+    if (!isIsbn13(formData.isbn)) {
+      showFeedback("Informe um ISBN-13 válido para cadastrar o livro.", "error");
+      return;
+    }
+    const isbn = normalizeIsbn(formData.isbn);
     setIsSaving(true);
     if (!user || !user.id) {
       setIsSaving(false);
@@ -1090,7 +1368,7 @@ function InventoryPage({ user }) {
       }
 
       const { error } = await supabase.from('livros').insert([{
-        dono_id: user.id, isbn: formData.isbn || null, titulo: formData.titulo, autor: formData.autor,
+        dono_id: user.id, isbn, titulo: formData.titulo, autor: formData.autor,
         idioma: formData.idioma, tema_genero: formData.tema_genero, estado_conservacao: formData.estado_conservacao,
         foto_capa_url: finalCoverUrl || null, status: 'Disponível'
       }]);
@@ -1116,7 +1394,7 @@ function InventoryPage({ user }) {
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-8 border-b pb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8 border-b pb-6">
         <div>
           <h2 className="text-3xl font-bold">Meu Inventário</h2>
         </div>
@@ -1134,7 +1412,7 @@ function InventoryPage({ user }) {
           <button onClick={() => setIsModalOpen(true)} className="mt-4 text-blue-600 font-bold hover:underline">Cadastrar meu primeiro exemplar</button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           {myBooks.map((book) => (
             <article key={book.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
               <div className="relative aspect-[2/3] bg-gray-100 flex items-center justify-center border-b border-gray-100">
@@ -1163,18 +1441,81 @@ function InventoryPage({ user }) {
             </div>
             
             <form onSubmit={handleSaveBook} className="p-6 space-y-6">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <label className="block text-sm font-semibold mb-2">Autopreenchimento ISBN</label>
-                <div className="flex gap-2">
-                  <input type="text" name="isbn" value={formData.isbn} onChange={handleFormChange} className="flex-grow px-3 py-2 border border-blue-200 rounded-md focus:ring-blue-500" placeholder="Ex: 9788535914849" />
-                  <button type="button" onClick={handleSearchISBN} disabled={isSearchingISBN} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
-                    {isSearchingISBN ? '...' : 'Buscar'}
-                  </button>
+              <section className="space-y-4 rounded-lg bg-blue-50 p-4 dark:bg-slate-800" aria-labelledby="google-books-search-heading">
+                <div>
+                  <h4 id="google-books-search-heading" className="text-sm font-semibold text-gray-900 dark:text-slate-100">Buscar no Google Books</h4>
+                  <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">Informe um ISBN-13 ou pesquise por título e autor. Só exibimos livros com ISBN-13.</p>
                 </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="google-books-title-or-isbn" className="mb-1 block text-sm font-medium text-gray-800 dark:text-slate-200">ISBN-13 ou título</label>
+                    <input
+                      id="google-books-title-or-isbn"
+                      type="search"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      className="w-full min-w-0 rounded-md border border-blue-200 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                      placeholder="Ex: 9788535914849 ou Dom Casmurro"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="google-books-author" className="mb-1 block text-sm font-medium text-gray-800 dark:text-slate-200">Autor (opcional)</label>
+                    <input
+                      id="google-books-author"
+                      type="search"
+                      value={searchAuthor}
+                      onChange={(event) => setSearchAuthor(event.target.value)}
+                      className="w-full min-w-0 rounded-md border border-blue-200 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                      placeholder="Ex: Machado de Assis"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSearchBooks}
+                  disabled={isSearchingBooks}
+                  className="w-full rounded-md bg-blue-600 px-4 py-2 font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                >
+                  {isSearchingBooks ? 'Buscando...' : isIsbn13(searchTerm) ? 'Buscar ISBN' : 'Buscar título e autor'}
+                </button>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2"><label className="block text-sm font-medium mb-1">Título *</label><input type="text" name="titulo" value={formData.titulo} onChange={handleFormChange} required className="w-full px-3 py-2 border rounded-md" /></div>
+                {hasSearchedGoogleBooks && !isSearchingBooks && googleBooksResults.length === 0 && (
+                  <p className="text-sm text-gray-700 dark:text-slate-200" role="status">Nenhum resultado com ISBN-13 foi encontrado. Você pode preencher os dados manualmente.</p>
+                )}
+
+                {googleBooksResults.length > 0 && (
+                  <div className="space-y-3" aria-live="polite">
+                    <h5 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Escolha o livro correto</h5>
+                    <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+                      {googleBooksResults.map((book) => (
+                        <button
+                          key={book.isbn}
+                          type="button"
+                          aria-pressed={selectedGoogleBook?.isbn === book.isbn}
+                          onClick={() => handleSelectGoogleBook(book)}
+                          className={`flex min-w-0 items-center gap-3 rounded-md border p-3 text-left transition ${selectedGoogleBook?.isbn === book.isbn ? 'border-blue-600 bg-white ring-2 ring-blue-500 dark:bg-slate-900' : 'border-blue-200 bg-white hover:border-blue-400 dark:border-slate-600 dark:bg-slate-900'}`}
+                        >
+                          {book.foto_capa_url ? (
+                            <img src={book.foto_capa_url} alt="" className="h-20 w-14 shrink-0 rounded object-cover" />
+                          ) : (
+                            <span className="flex h-20 w-14 shrink-0 items-center justify-center rounded bg-gray-100 text-2xl dark:bg-slate-800" aria-hidden="true">📖</span>
+                          )}
+                          <span className="min-w-0">
+                            <span className="block line-clamp-2 text-sm font-semibold text-gray-900 dark:text-slate-100">{book.titulo || 'Título não informado'}</span>
+                            <span className="mt-1 block truncate text-xs text-gray-600 dark:text-slate-300">{book.autor || 'Autor não informado'}</span>
+                            <span className="mt-1 block break-all text-xs text-gray-500 dark:text-slate-400">ISBN-13: {book.isbn}</span>
+                            <span className="mt-1 block text-xs text-blue-700 dark:text-blue-300">Busca por {book.matches.join(' e ')}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="col-span-full"><label htmlFor="book-isbn" className="block text-sm font-medium mb-1">ISBN-13 *</label><input id="book-isbn" type="text" inputMode="numeric" autoComplete="off" name="isbn" value={formData.isbn} onChange={handleFormChange} required className="w-full px-3 py-2 border rounded-md" placeholder="Selecione um resultado ou informe 13 dígitos" /></div>
+                <div className="col-span-full"><label className="block text-sm font-medium mb-1">Título *</label><input type="text" name="titulo" value={formData.titulo} onChange={handleFormChange} required className="w-full px-3 py-2 border rounded-md" /></div>
                 <div><label className="block text-sm font-medium mb-1">Autor *</label><input type="text" name="autor" value={formData.autor} onChange={handleFormChange} required className="w-full px-3 py-2 border rounded-md" /></div>
                 <div><label className="block text-sm font-medium mb-1">Idioma</label><input type="text" name="idioma" value={formData.idioma} onChange={handleFormChange} className="w-full px-3 py-2 border rounded-md" /></div>
                 <div>
@@ -1185,7 +1526,7 @@ function InventoryPage({ user }) {
                   <label className="block text-sm font-medium mb-1">Estado de Conservação *</label>
                   <select name="estado_conservacao" value={formData.estado_conservacao} onChange={handleFormChange} required className="w-full px-3 py-2 border rounded-md"><option value="">Sel...</option><option value="Novo">Novo</option><option value="Seminovo">Seminovo</option><option value="Marcas de uso">Marcas de uso</option></select>
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-full">
                   <label className="block text-sm font-medium mb-1">Foto Real (Opcional)</label>
                   <input type="file" accept="image/*" onChange={handleImageChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                 </div>
@@ -1195,7 +1536,7 @@ function InventoryPage({ user }) {
                 <div className="flex items-center gap-4 bg-gray-50 p-4 rounded border"><img src={previewImage || formData.foto_capa_url} alt="Capa" className="h-24 object-cover rounded shadow-sm" /></div>
               )}
 
-              <div className="pt-6 flex justify-end gap-3 border-t">
+              <div className="pt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border text-gray-700 rounded-md font-medium hover:bg-gray-50">Cancelar</button>
                 <button type="submit" disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white rounded-md font-bold hover:bg-blue-700">{isSaving ? 'Salvando...' : 'Salvar Livro'}</button>
               </div>
@@ -1244,16 +1585,16 @@ function DashboardPage({ user, onBookSelect }) {
         <p className="text-gray-600 mt-1">Explore livros disponibilizados por outros leitores.</p>
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 mb-8">
-        <input type="search" placeholder="Buscar por Título ou Autor..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+      <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col md:flex-row gap-3 sm:gap-4 mb-8">
+        <input type="search" placeholder="Buscar por Título ou Autor..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="min-w-0 flex-grow px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
         
-        <div className="flex gap-4">
-          <select value={filterGenre} onChange={(e) => setFilterGenre(e.target.value)} className="w-full md:w-48 px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+        <div className="flex flex-col min-[420px]:flex-row gap-3 sm:gap-4">
+          <select value={filterGenre} onChange={(e) => setFilterGenre(e.target.value)} className="min-w-0 w-full md:w-48 px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 outline-none">
             <option value="">Todos os Gêneros</option>
             {availableGenres.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
           
-          <select value={filterEstado} onChange={(e) => setFilterEstado(e.target.value)} className="w-full md:w-48 px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+          <select value={filterEstado} onChange={(e) => setFilterEstado(e.target.value)} className="min-w-0 w-full md:w-48 px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 outline-none">
             <option value="">Qualquer Estado</option>
             {availableStates.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
@@ -1269,7 +1610,7 @@ function DashboardPage({ user, onBookSelect }) {
              <p className="text-gray-500 font-medium">Nenhum livro encontrado com estes filtros.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             {filteredBooks.map((book) => (
               <article key={book.id} className="bg-white rounded-lg shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-all flex flex-col h-full hover:border-blue-300" onClick={() => onBookSelect(book)}>
                 <div className="relative aspect-[2/3] bg-gray-100 flex items-center justify-center border-b">
@@ -1295,9 +1636,9 @@ function DashboardPage({ user, onBookSelect }) {
 
 function LandingPage({ onNavigate }) {
   return (
-    <section className="max-w-4xl mx-auto text-center space-y-8 mt-12 md:mt-24 animate-fade-in" aria-labelledby="hero-heading">
-      <h2 id="hero-heading" className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight">Renove sua estante. <br className="hidden md:block" /><span className="text-blue-600">Compartilhe conhecimento.</span></h2>
-      <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">Junte-se à nossa comunidade de leitores. Troque livros físicos que você já leu por novas aventuras literárias de forma simples e segura.</p>
+    <section className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8 mt-8 sm:mt-12 md:mt-24 animate-fade-in" aria-labelledby="hero-heading">
+      <h2 id="hero-heading" className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight">Renove sua estante. <br className="hidden md:block" /><span className="text-blue-600">Compartilhe conhecimento.</span></h2>
+      <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">Junte-se à nossa comunidade de leitores. Troque livros físicos que você já leu por novas aventuras literárias de forma simples e segura.</p>
       <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
         <button onClick={() => onNavigate('auth')} className="px-8 py-3 bg-blue-600 text-white text-lg font-bold rounded-lg hover:bg-blue-700 shadow-md transform hover:-translate-y-1 transition-all">Começar a Trocar</button>
       </div>
@@ -1347,14 +1688,14 @@ function AuthPage({ onSignupSuccess }) {
   };
 
   return (
-    <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 border border-gray-100 animate-fade-in">
+    <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-5 sm:p-8 border border-gray-100 animate-fade-in">
       <h2 className="text-2xl font-bold text-center mb-6 text-gray-900">{isLogin ? 'Entrar na Plataforma' : 'Criar sua conta'}</h2>
       {errorMsg && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm font-medium rounded border border-red-200">{errorMsg}</div>}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {!isLogin && <div><label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label><input type="text" name="fullName" value={formData.fullName} onChange={handleChange} required className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" /></div>}
-        <div><label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label><input type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-1">Senha</label><input type="password" name="password" value={formData.password} onChange={handleChange} required className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-        {!isLogin && <div><label className="block text-sm font-medium text-gray-700 mb-1">Confirme a Senha</label><input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" /></div>}
+        {!isLogin && <div><label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label><input id="fullName" type="text" name="fullName" value={formData.fullName} onChange={handleChange} required className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" /></div>}
+        <div><label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">E-mail</label><input id="email" type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+        <div><label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Senha</label><input id="password" type="password" name="password" value={formData.password} onChange={handleChange} required className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+        {!isLogin && <div><label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirme a Senha</label><input id="confirmPassword" type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required className="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" /></div>}
         <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white font-bold py-3 rounded-md mt-2 hover:bg-blue-700 transition-colors shadow-sm">{isLoading ? 'Processando...' : (isLogin ? 'Entrar' : 'Cadastrar')}</button>
       </form>
       <div className="mt-6 text-center border-t border-gray-100 pt-4">

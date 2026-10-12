@@ -27,16 +27,21 @@ BEGIN
         WHERE livro_id = NEW.id AND is_ativo = true;
     END IF;
 
-    v_pk_hash := md5(v_business_key || now()::text);
+    v_pk_hash := md5(v_business_key || clock_timestamp()::text || gen_random_uuid()::text);
 
     INSERT INTO silver.dim_livros_historico (
         pk_hash, business_key, row_hash, livro_id, dono_id, isbn,
-        tema_genero, estado_conservacao, status, data_inicio, is_ativo
+        tema_genero, estado_conservacao, status, data_inicio, is_ativo, is_baseline
     ) VALUES (
         v_pk_hash, v_business_key, v_row_hash, NEW.id, NEW.dono_id, NEW.isbn,
-        NEW.tema_genero, NEW.estado_conservacao, NEW.status, now(), true
+        NEW.tema_genero, NEW.estado_conservacao, NEW.status, now(), true, false
     );
 
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_livro_history_change ON public.livros;
+CREATE TRIGGER on_livro_history_change
+    AFTER INSERT OR UPDATE ON public.livros
+    FOR EACH ROW EXECUTE FUNCTION silver.fn_atualiza_historico_livros();
