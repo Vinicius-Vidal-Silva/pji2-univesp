@@ -1,5 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { useTranslation } from 'react-i18next';
+import { ChevronDown, Globe, Moon, Sun } from 'lucide-react';
 import { isIsbn13, normalizeIsbn, searchGoogleBooks } from './googleBooks.js';
 
 const AdminDashboard = lazy(() => import('./AdminDashboard.jsx'));
@@ -23,6 +25,7 @@ function getProfileAvatarPath(publicUrl) {
 }
 
 export default function App() {
+  const { t, i18n } = useTranslation();
   const [currentScreen, setCurrentScreen] = useState('landing');
   const [user, setUser] = useState(null);
   const isAdmin = user?.app_metadata?.role === 'admin';
@@ -100,7 +103,7 @@ export default function App() {
                       onClick={() => { setCurrentScreen('dashboard'); setSelectedBookForDetails(null); }} 
                       className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'dashboard' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
-                      Vitrine
+                      {t('navigation.showcase')}
                     </button>
                   </li>
                   {isAdmin && (
@@ -109,7 +112,7 @@ export default function App() {
                         onClick={() => { setCurrentScreen('admin_dashboard'); setSelectedBookForDetails(null); }}
                         className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'admin_dashboard' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                       >
-                        Dashboard
+                        {t('navigation.dashboard')}
                       </button>
                     </li>
                   )}
@@ -118,7 +121,7 @@ export default function App() {
                       onClick={() => { setCurrentScreen('inventory'); setSelectedBookForDetails(null); }}
                       className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'inventory' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
-                      Meu Inventário
+                      {t('navigation.inventory')}
                     </button>
                   </li>
                   <li>
@@ -126,7 +129,7 @@ export default function App() {
                       onClick={() => { setCurrentScreen('wishlist'); setSelectedBookForDetails(null); }}
                       className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'wishlist' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
-                      Wishlist
+                      {t('navigation.wishlist')}
                     </button>
                   </li>
                   <li>
@@ -134,7 +137,7 @@ export default function App() {
                       onClick={() => { setCurrentScreen('trades'); setSelectedBookForDetails(null); }}
                       className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'trades' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
-                      Minhas Trocas
+                      {t('navigation.trades')}
                     </button>
                   </li>
                   <li>
@@ -142,7 +145,7 @@ export default function App() {
                       onClick={() => { setCurrentScreen('profile'); setSelectedBookForDetails(null); }}
                       className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${currentScreen === 'profile' ? (isDarkMode ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50') : (isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-600')}`}
                     >
-                      Meu Perfil
+                      {t('navigation.profile')}
                     </button>
                   </li>
                 </>
@@ -151,30 +154,47 @@ export default function App() {
               {!user && (
                 <li>
                   <button onClick={() => setCurrentScreen('landing')} className={`px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'text-slate-300 hover:text-blue-300' : 'text-gray-600 hover:text-blue-700'}`}>
-                    Início
+                    {t('navigation.home')}
                   </button>
                 </li>
               )}
 
               <li>
+                <label className={`relative inline-flex items-center gap-1.5 rounded-md px-2 py-2 transition-colors focus-within:ring-2 focus-within:ring-blue-500 ${isDarkMode ? 'text-slate-300 hover:bg-slate-800 hover:text-slate-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
+                  <Globe size={16} aria-hidden="true" />
+                  <select
+                    value={i18n.resolvedLanguage?.startsWith('en') ? 'en' : 'pt'}
+                    onChange={(event) => i18n.changeLanguage(event.target.value)}
+                    aria-label={t('language.label')}
+                    className="appearance-none bg-transparent pr-3 text-xs font-semibold focus:outline-none"
+                  >
+                    <option value="pt">PT</option>
+                    <option value="en">EN</option>
+                  </select>
+                  <ChevronDown size={12} className="pointer-events-none absolute right-1" aria-hidden="true" />
+                </label>
+              </li>
+
+              <li>
                 <button
                   type="button"
                   onClick={() => setIsDarkMode((prev) => !prev)}
-                  className={`px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700' : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  aria-label={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
+                  className={`rounded-md p-2 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'text-slate-300 hover:bg-slate-800 hover:text-amber-300' : 'text-gray-600 hover:bg-gray-100 hover:text-blue-700'}`}
+                  aria-label={isDarkMode ? t('theme.light') : t('theme.dark')}
+                  title={isDarkMode ? t('theme.light') : t('theme.dark')}
                 >
-                  {isDarkMode ? '☀️ Claro' : '🌙 Escuro'}
+                  {isDarkMode ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
                 </button>
               </li>
               
               <li>
                 {user ? (
                   <button onClick={handleLogout} className="px-3 sm:px-4 py-2 border border-red-200 text-xs sm:text-sm font-semibold text-red-600 hover:bg-red-50 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-md transition-all">
-                    Sair
+                    {t('auth.logout')}
                   </button>
                 ) : (
                   <button onClick={() => setCurrentScreen('auth')} className="px-3 sm:px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm">
-                    Entrar / Cadastrar
+                    {t('auth.loginSignup')}
                   </button>
                 )}
               </li>
