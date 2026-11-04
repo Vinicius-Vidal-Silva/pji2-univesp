@@ -1,3 +1,4 @@
+import os
 import shutil
 import socket
 import subprocess
@@ -6,9 +7,14 @@ import unittest
 from pathlib import Path
 from urllib.request import urlopen
 
+from dotenv import load_dotenv
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 FRONTEND_ROOT = PROJECT_ROOT / "frontend-leitura"
+load_dotenv(FRONTEND_ROOT / ".env")
+TEST_EMAIL = os.getenv("EMAIL_TESTE")
+TEST_PASSWORD = os.getenv("SENHA_TESTE")
 NODE = shutil.which("node")
 
 try:
@@ -106,10 +112,18 @@ class FrontendGuiTests(unittest.TestCase):
     def test_auth_screen_switches_between_login_and_signup(self):
         self.page.get_by_role("button", name="Entrar / Cadastrar").click()
         self.page.get_by_role("heading", name="Entrar na Plataforma").wait_for()
-        self.page.get_by_role("button", name="Cadastre-se").click()
+        self.page.get_by_role("button", name="Cadastrar", exact=True).click()
         self.page.get_by_role("heading", name="Criar sua conta").wait_for()
         self.page.get_by_label("Nome Completo").wait_for()
         self.page.get_by_label("Confirme a Senha").wait_for()
+
+    @unittest.skipUnless(TEST_EMAIL and TEST_PASSWORD, "Configure EMAIL_TESTE e SENHA_TESTE em frontend-leitura/.env.")
+    def test_login_uses_configured_test_account(self):
+        self.page.get_by_role("button", name="Entrar / Cadastrar").click()
+        self.page.get_by_label("E-mail").fill(TEST_EMAIL)
+        self.page.get_by_label("Senha").fill(TEST_PASSWORD)
+        self.page.locator("form").get_by_role("button", name="Entrar", exact=True).click()
+        self.page.get_by_role("button", name="Sair", exact=True).wait_for(timeout=20000)
 
     def test_theme_toggle_updates_document(self):
         self.page.get_by_role("button", name="Ativar modo escuro").click()

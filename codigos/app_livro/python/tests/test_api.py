@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
+load_dotenv(PROJECT_ROOT / "frontend-leitura" / ".env.local")
 load_dotenv(PROJECT_ROOT / "frontend-leitura" / ".env")
 load_dotenv(PROJECT_ROOT / "codigos" / "app_livro" / "python" / ".env")
 API_TESTS_ENABLED = os.getenv("RUN_API_TESTS") == "1"

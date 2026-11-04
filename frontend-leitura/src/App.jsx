@@ -1461,15 +1461,15 @@ function InventoryPage({ user }) {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-8">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-50 p-2 sm:items-center sm:p-4">
+          <div className="my-0 max-h-[calc(100dvh-1rem)] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+            <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6">
               <h3 className="text-xl font-bold text-gray-900">{t('inventory.newCopy')}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600" aria-label={t('common.close')}>✖</button>
             </div>
             
-            <form onSubmit={handleSaveBook} className="p-6 space-y-6">
-              <section className="space-y-4 rounded-lg bg-blue-50 p-4 dark:bg-slate-800" aria-labelledby="google-books-search-heading">
+            <form onSubmit={handleSaveBook} className="space-y-6 p-4 sm:p-6">
+              <section className="space-y-4 rounded-lg bg-blue-50 p-3 sm:p-4 dark:bg-slate-800" aria-labelledby="google-books-search-heading">
                 <div>
                   <h4 id="google-books-search-heading" className="text-sm font-semibold text-gray-900 dark:text-slate-100">{t('googleBooks.heading')}</h4>
                   <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">{t('googleBooks.description')}</p>
@@ -1514,7 +1514,7 @@ function InventoryPage({ user }) {
                 {googleBooksResults.length > 0 && (
                   <div className="space-y-3" aria-live="polite">
                     <h5 className="text-sm font-semibold text-gray-900 dark:text-slate-100">{t('googleBooks.chooseBook')}</h5>
-                    <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+                    <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto sm:max-h-72 sm:grid-cols-2">
                       {googleBooksResults.map((book) => (
                         <button
                           key={book.isbn}

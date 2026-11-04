@@ -21,9 +21,11 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 Os testes unitários e GUI não precisam de credenciais Supabase. Os testes unitários executam as funções JavaScript usadas pelo formulário de cadastro via Node.js, sem manter uma implementação duplicada em Python.
 
+Se `EMAIL_TESTE` e `SENHA_TESTE` estiverem definidos em `frontend-leitura/.env`, a suíte GUI também executará um login real com essa conta e verificará que a sessão foi iniciada. Esse teste faz uma solicitação de autenticação ao Supabase; use uma conta dedicada a testes.
+
 ## Executar testes de API
 
-Os testes de API ficam desativados por padrão e só fazem leituras no Supabase e no Google Books. Configure no ambiente ou em um `.env` valores `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` (ou `SUPABASE_URL` e `SUPABASE_KEY`), depois habilite explicitamente:
+Os testes de API ficam desativados por padrão e só fazem leituras no Supabase e no Google Books. Eles carregam as configurações de `frontend-leitura/.env.local`, `frontend-leitura/.env` ou `codigos/app_livro/python/.env` (nessa ordem). Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` (ou `SUPABASE_URL` e `SUPABASE_KEY`), depois habilite os testes explicitamente:
 
 ```powershell
 $env:RUN_API_TESTS = "1"

@@ -14,6 +14,12 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+class GeminiApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+  }
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -67,21 +73,42 @@ serve(async (req: Request) => {
       throw new Error('Chave da API do Gemini não configurada.')
     }
 
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents,
-        }),
-      },
-    )
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`
+    const requestOptions: RequestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents,
+      }),
+    }
+    let geminiResponse: Response | null = null
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      geminiResponse = await fetch(geminiUrl, requestOptions)
+      const isTransientError = [429, 500, 502, 503, 504].includes(geminiResponse.status)
+
+      if (geminiResponse.ok || !isTransientError || attempt === 2) break
+
+      await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** attempt)))
+    }
+
+    if (!geminiResponse) {
+      throw new Error('Não foi possível iniciar a solicitação ao Gemini.')
+    }
 
     if (!geminiResponse.ok) {
       const errorBody = await geminiResponse.text()
-      throw new Error(`Erro da API Gemini: ${errorBody || geminiResponse.statusText}`)
+      if ([429, 500, 502, 503, 504].includes(geminiResponse.status)) {
+        throw new GeminiApiError(
+          `O Gemini está temporariamente indisponível (HTTP ${geminiResponse.status}). Tente novamente em alguns instantes.`,
+          geminiResponse.status,
+        )
+      }
+      throw new GeminiApiError(
+        `Erro da API Gemini: ${errorBody || geminiResponse.statusText}`,
+        geminiResponse.status,
+      )
     }
 
     const data = (await geminiResponse.json()) as {
@@ -109,7 +136,7 @@ serve(async (req: Request) => {
 
     return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status: error instanceof GeminiApiError ? error.status : 400,
     })
   }
 })
