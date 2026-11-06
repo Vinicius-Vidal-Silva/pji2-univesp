@@ -10,6 +10,23 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 const PROFILE_AVATAR_BUCKET = 'fotos-perfil';
+const clariceReviewCache = new Map();
+
+async function getClariceErrorMessage(error, fallback) {
+  if (error?.context instanceof Response) {
+    try {
+      const responseBody = await error.context.clone().json();
+      if (typeof responseBody.error === 'string' && responseBody.error) return responseBody.error;
+      if (typeof responseBody.message === 'string' && responseBody.message) return responseBody.message;
+    } catch {
+      return `${error.message || fallback} (HTTP ${error.context.status})`;
+    }
+
+    return `${error.message || fallback} (HTTP ${error.context.status})`;
+  }
+
+  return error?.message || fallback;
+}
 
 function getProfileAvatarPath(publicUrl) {
   if (!publicUrl) return null;
@@ -272,19 +289,61 @@ function ClariceChat({ isDarkMode, book }) {
     { role: 'assistant', content: t('clarice.greeting') },
   ]);
   const [isSending, setIsSending] = useState(false);
+  const [isGeneratingReview, setIsGeneratingReview] = useState(false);
+  const [generatedReview, setGeneratedReview] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const messagesEndRef = useRef(null);
+  const chatRequestInFlightRef = useRef(false);
+  const reviewRequestInFlightRef = useRef(false);
+  const bookKey = book?.titulo && book?.autor
+    ? `${book.titulo.trim().toLowerCase()}::${book.autor.trim().toLowerCase()}`
+    : '';
+  const cachedReview = bookKey
+    ? clariceReviewCache.get(bookKey) || (generatedReview?.key === bookKey ? generatedReview.text : null)
+    : null;
 
   useEffect(() => {
     if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [isOpen, messages]);
 
+  const handleGenerateReview = async () => {
+    if (!book || !bookKey || cachedReview || isGeneratingReview || reviewRequestInFlightRef.current) return;
+    if (!supabase) {
+      setErrorMessage(t('clarice.requestError'));
+      return;
+    }
+
+    reviewRequestInFlightRef.current = true;
+    setIsGeneratingReview(true);
+    setErrorMessage('');
+
+    try {
+      const { data, error } = await supabase.functions.invoke('clarice-review', {
+        body: { titulo: book.titulo, autor: book.autor },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const review = data?.review || data?.reply;
+      if (!review) throw new Error(t('clarice.noReply'));
+
+      clariceReviewCache.set(bookKey, review);
+      setGeneratedReview({ key: bookKey, text: review });
+    } catch (error) {
+      setErrorMessage(await getClariceErrorMessage(error, t('clarice.requestError')));
+    } finally {
+      reviewRequestInFlightRef.current = false;
+      setIsGeneratingReview(false);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     const content = input.trim();
-    if (!content || isSending || !supabase) return;
+    if (!content || isSending || isGeneratingReview || chatRequestInFlightRef.current || !supabase) return;
 
     const nextMessages = [...messages, { role: 'user', content }];
+    chatRequestInFlightRef.current = true;
     setMessages(nextMessages);
     setInput('');
     setErrorMessage('');
@@ -304,17 +363,9 @@ function ClariceChat({ isDarkMode, book }) {
       if (!reply) throw new Error(t('clarice.noReply'));
       setMessages((current) => [...current, { role: 'assistant', content: reply }]);
     } catch (error) {
-      let message = error.message || t('clarice.requestError');
-      if (error.context instanceof Response) {
-        try {
-          const responseBody = await error.context.clone().json();
-          message = responseBody.error || responseBody.message || message;
-        } catch {
-          message = `${message} (${error.context.status})`;
-        }
-      }
-      setErrorMessage(message);
+      setErrorMessage(await getClariceErrorMessage(error, t('clarice.requestError')));
     } finally {
+      chatRequestInFlightRef.current = false;
       setIsSending(false);
     }
   };
@@ -342,12 +393,27 @@ function ClariceChat({ isDarkMode, book }) {
           )}
 
           <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+            {book && !cachedReview && (
+              <button
+                type="button"
+                onClick={handleGenerateReview}
+                disabled={isGeneratingReview}
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isGeneratingReview ? t('clarice.thinking') : t('clarice.generateReview')}
+              </button>
+            )}
+            {cachedReview && (
+              <div className={`max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${isDarkMode ? 'bg-slate-800 text-slate-100' : 'bg-gray-100 text-gray-800'}`}>
+                {cachedReview}
+              </div>
+            )}
             {messages.map((message, index) => (
               <div key={`${message.role}-${index}`} className={`max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${message.role === 'user' ? 'ml-auto bg-blue-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-100' : 'bg-gray-100 text-gray-800'}`}>
                 {message.content}
               </div>
             ))}
-            {isSending && <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`} role="status">{t('clarice.thinking')}</p>}
+            {(isSending || isGeneratingReview) && <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`} role="status">{t('clarice.thinking')}</p>}
             {errorMessage && <p className="text-sm text-red-600" role="alert">{errorMessage}</p>}
             <div ref={messagesEndRef} />
           </div>
@@ -359,9 +425,10 @@ function ClariceChat({ isDarkMode, book }) {
               placeholder={t('clarice.placeholder')}
               maxLength={2000}
               aria-label={t('clarice.messageLabel')}
+              disabled={isSending || isGeneratingReview}
               className={`min-w-0 flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'border-slate-600 bg-slate-800 placeholder:text-slate-400' : 'border-gray-300 bg-white'}`}
             />
-            <button type="submit" disabled={isSending || !input.trim()} className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" aria-label={t('common.send')}>{t('common.send')}</button>
+            <button type="submit" disabled={isSending || isGeneratingReview || !input.trim()} className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" aria-label={t('common.send')}>{t('common.send')}</button>
           </form>
         </section>
       )}
